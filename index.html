@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>وصل قبض - قمر الخليج</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --royal-green: #1b4d3e;
+            --light-green: #f0f5f2;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 12px;
+            display: flex;
+        }
+
+        /* --- الأرشيف الجانبي --- */
+        .archive-sidebar {
+            position: fixed; top: 0; right: -350px; width: 330px; height: 100vh;
+            background: white; box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            transition: 0.4s; z-index: 2000; display: flex; flex-direction: column;
+        }
+        .archive-sidebar.open { right: 0; }
+        .archive-header { background: var(--royal-green); color: white; padding: 15px; text-align: center; font-weight: bold; }
+        .archive-content { flex-grow: 1; overflow-y: auto; padding: 10px; }
+        
+        .archive-item { 
+            background: #fff; border: 1px solid #ddd; margin-bottom: 8px; 
+            border-radius: 6px; cursor: pointer; overflow: hidden; border-right: 4px solid var(--royal-green);
+        }
+        .archive-summary { padding: 10px; display: flex; justify-content: space-between; align-items: center; background: #fafafa; }
+        .archive-details { padding: 10px; display: none; border-top: 1px solid #eee; font-size: 13px; background: #fff; line-height: 1.6; }
+        .archive-item.active .archive-details { display: block; }
+        .btn-del { color: red; cursor: pointer; border: 1px solid red; background: none; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+
+        /* --- واجهة الإدخال الرئيسية --- */
+        .main-container { flex-grow: 1; transition: 0.4s; }
+        .input-form {
+            background: white; max-width: 700px; margin: 0 auto 20px auto;
+            padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .input-form h2 { grid-column: span 2; color: var(--royal-green); text-align: center; margin: 0; }
+        .input-group { display: flex; flex-direction: column; }
+        .input-group label { font-size: 13px; margin-bottom: 3px; color: #555; }
+        input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: 'Cairo'; }
+
+        .receipt-counter-preview {
+            grid-column: span 2; text-align: center; background: #eee;
+            padding: 5px; border-radius: 4px; font-weight: bold; color: #d32f2f;
+        }
+
+        .names-wrapper { grid-column: span 2; display: flex; flex-direction: column; gap: 8px; border: 1px dashed #ccc; padding: 10px; border-radius: 4px; }
+        .name-entry { display: flex; gap: 5px; align-items: center; }
+        .btn-add-name { background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; padding: 5px 15px; font-weight: bold; }
+        .btn-remove-name { background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; padding: 5px 10px; }
+
+        .submit-btn {
+            grid-column: span 2; background-color: var(--royal-green); color: white;
+            padding: 12px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; font-family: 'Cairo'; font-weight: bold; margin-top: 10px;
+        }
+
+        .btn-toggle-archive { position: fixed; top: 20px; left: 20px; background: var(--royal-green); color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; z-index: 1001; }
+
+        /* --- تنسيق منطقة الطباعة --- */
+        #print-area {
+            display: none; flex-direction: column;
+            width: 210mm; height: 297mm; margin: 0 auto; background: white;
+        }
+
+        .receipt-instance {
+            height: 50%; box-sizing: border-box; padding: 15px 30px; 
+            border: 2px solid var(--royal-green); display: flex;
+            flex-direction: column; position: relative; overflow: hidden;
+        }
+
+        .receipt-instance:first-child { border-bottom: 1px dashed #aaa; }
+
+        .receipt-logo {
+            position: absolute; top: 15px; right: 30px;
+            width: 80px; height: auto; object-fit: contain;
+        }
+
+        .receipt-no {
+            position: absolute; top: 15px; left: 30px;
+            border: 1px solid var(--royal-green); padding: 2px 10px; border-radius: 4px;
+            color: var(--royal-green); font-weight: bold; font-size: 13px;
+        }
+
+        .company-details { text-align: center; color: var(--royal-green); margin-bottom: 5px; }
+        .company-details h1 { margin: 0; font-size: 32px; font-weight: 900; }
+        .company-details p { margin: 0; font-size: 16px; }
+
+        .receipt-title {
+            text-align: center; background: var(--royal-green); color: white;
+            padding: 3px; margin: 6px 0; font-size: 18px; border-radius: 20px;
+        }
+
+        .names-display-container {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 5px 15px;
+            border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 8px;
+        }
+        .name-tag { font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .name-label { color: var(--royal-green); font-weight: bold; }
+
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        .info-item { font-size: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 2px; display: flex; align-items: center; }
+        .info-label { font-weight: bold; color: var(--royal-green); min-width: 110px; }
+        .info-value { color: #333; }
+        .full-width { grid-column: span 2; }
+        .highlight-date { color: #d32f2f; font-weight: bold; }
+
+        .notes-section {
+            padding: 8px 12px; border: 1px solid var(--royal-green);
+            background-color: var(--light-green); border-radius: 6px; margin-bottom: 10px;
+        }
+        .notes-list { list-style: none; padding: 0; margin: 0; font-size: 11px; line-height: 1.4; }
+        .notes-list li { 
+            margin-bottom: 2px; padding-right: 15px; position: relative; 
+            font-weight: bold; color: #1b4d3e;
+        }
+        .notes-list li::before { content: "•"; color: var(--royal-green); position: absolute; right: 0; }
+
+        .contact-info-footer {
+            border-top: 1.5px solid var(--royal-green); padding-top: 5px; text-align: center;
+            color: var(--royal-green); margin-top: auto; font-size: 12px; font-weight: bold;
+        }
+
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { padding: 0; background: white; display: block; }
+            .main-container, .archive-sidebar, .btn-toggle-archive { display: none !important; }
+            #print-area { display: flex !important; width: 100%; height: 100vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <button class="btn-toggle-archive" onclick="toggleSidebar()"> الأرشيف</button>
+
+    <div class="archive-sidebar" id="sidebar">
+        <div class="archive-header">أرشيف الواصلات السحابي</div>
+        <div class="archive-content" id="archive-list"></div>
+        <button onclick="toggleSidebar()" style="padding:10px; cursor:pointer; width:100%; border:none; background:#eee;">إغلاق</button>
+    </div>
+
+    <div class="main-container">
+        <div class="input-form">
+            <h2>إصدار وصل جديد</h2>
+            <div class="receipt-counter-preview">رقم الوصل القادم: <span id="next-id-view">جاري التحميل...</span></div>
+            
+            <div class="names-wrapper" id="names-container">
+                <label>أسماء المسافرين</label>
+                <div class="name-entry">
+                    <input type="text" class="in-name" placeholder="اسم المسافر" style="flex-grow: 1;">
+                    <button type="button" class="btn-add-name" onclick="addNewNameField()">إضافة اسم +</button>
+                </div>
+            </div>
+
+            <div class="input-group"><label>بلد التأشيرة</label><input type="text" id="in-country" placeholder=""></div>
+            <div class="input-group"><label>مدة العمل (بالأيام)</label><input type="number" id="in-duration"></div>
+            <div class="input-group"><label>نوع التأشيرة</label><input type="text" id="in-visaType"></div>
+            <div class="input-group"><label>تاريخ التقديم</label><input type="date" id="in-date"></div>
+            <div class="input-group"><label>السعر الواصل</label><input type="text" id="in-paid" onblur="formatPrice(this)"></div>
+            <div class="input-group"><label>السعر الباقي</label><input type="text" id="in-remain" onblur="formatPrice(this)"></div>
+            <div class="input-group full-width"><label>رقم الهاتف</label><input type="text" id="in-phone"></div>
+            
+            <button class="submit-btn" id="btn-submit" onclick="processAndPrint()" disabled>جاري الاتصال بالسحاب...</button>
+            <button onclick="resetCounter()" style="background:none; border:none; color:gray; cursor:pointer; font-size:10px; grid-column: span 2;">تصفير التسلسل</button>
+        </div>
+    </div>
+
+    <div id="print-area">
+        <div class="receipt-instance" id="receipt-customer">
+            <img src="logo.png" class="receipt-logo" alt="Logo">
+            <div class="receipt-no">No: <span class="out-receipt-id">0000</span></div>
+            <div class="company-details"><h1>شركة قمر الخليج</h1><p>للسفر والسياحة</p></div>
+            <div class="receipt-title">وصل استلام وتعهد (نسخة الزبون)</div>
+            <div class="names-display-container out-names"></div>
+            <div class="info-grid out-details"></div>
+            <div class="notes-section">
+                <ul class="notes-list" id="notes-customer"></ul>
+            </div>
+            <div class="contact-info-footer">الفلوجة - شارع الثرثار -   07844005572 | 07744005595 | 07500807094</div>
+        </div>
+
+        <div class="receipt-instance" id="receipt-office">
+            <img src="logo.png" class="receipt-logo" alt="Logo">
+            <div class="receipt-no">No: <span class="out-receipt-id">0000</span></div>
+            <div class="company-details"><h1>شركة قمر الخليج</h1><p>للسفر والسياحة</p></div>
+            <div class="receipt-title">وصل استلام وتعهد (نسخة المكتب)</div>
+            <div class="names-display-container out-names"></div>
+            <div class="info-grid out-details"></div>
+            <div class="contact-info-footer">الفلوجة - شارع الثرثار - 07844005572 | 07744005595</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, query, orderBy, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCaBLp_vqvzg6k0TLiKUkqDTMW5hh3zyyY",
+            authDomain: "qamar-visa.firebaseapp.com",
+            databaseURL: "https://qamar-visa-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "qamar-visa",
+            storageBucket: "qamar-visa.firebasestorage.app",
+            messagingSenderId: "157247216623",
+            appId: "1:157247216623:web:63a085a72e25078131341a",
+            measurementId: "G-6NY0MK1MN2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const receiptsCol = collection(db, "receipts");
+        const settingsDoc = doc(db, "settings", "counters");
+        
+        // تم تحديث الرابط الجديد هنا
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbyN5FyUeae3ugbupejyOdmAWhWprjFiEw_Bioilpo9sfLn9FOhTv19-RpOyUvWfNGx4Dw/exec';
+
+        window.toggleSidebar = () => document.getElementById('sidebar').classList.toggle('open');
+        const formatID = (num) => String(num).padStart(4, '0');
+
+        window.formatPrice = (input) => {
+            let val = input.value.replace(/,/g, '');
+            if (val !== "" && !isNaN(val)) {
+                let numericVal = parseFloat(val);
+                if (numericVal < 10000 && numericVal > 0) numericVal = numericVal * 1000;
+                input.value = numericVal.toLocaleString();
+            }
+        };
+
+        async function getNextSerial() {
+            const snap = await getDoc(settingsDoc);
+            return snap.exists() ? snap.data().lastSerial + 1 : 1;
+        }
+
+        window.onload = async () => {
+            document.getElementById('in-date').value = new Date().toISOString().split('T')[0];
+            try {
+                const nextID = await getNextSerial();
+                document.getElementById('next-id-view').innerText = formatID(nextID);
+                document.getElementById('btn-submit').disabled = false;
+                document.getElementById('btn-submit').innerText = "توليد وطباعة الوصل";
+            } catch (e) {
+                document.getElementById('next-id-view').innerText = "خطأ بالاتصال";
+            }
+
+            const q = query(receiptsCol, orderBy("timestamp", "desc"));
+            onSnapshot(q, (snapshot) => {
+                renderArchive(snapshot.docs.map(d => ({ docId: d.id, ...d.data() })));
+            });
+        };
+
+        window.addNewNameField = () => {
+            const container = document.getElementById('names-container');
+            const div = document.createElement('div');
+            div.className = 'name-entry';
+            div.innerHTML = `<input type="text" class="in-name" placeholder="اسم المسافر" style="flex-grow: 1;"><button type="button" class="btn-remove-name" onclick="this.parentElement.remove()">حذف ×</button>`;
+            container.appendChild(div);
+        };
+
+        function calculateWorkDays(startDateStr, duration) {
+            if (!startDateStr || !duration) return "سيتم إبلاغكم لاحقاً";
+            let date = new Date(startDateStr);
+            let added = 0;
+            while (added < parseInt(duration)) {
+                date.setDate(date.getDate() + 1);
+                if (date.getDay() !== 5 && date.getDay() !== 6) added++;
+            }
+            return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+        }
+
+        window.processAndPrint = async () => {
+            const country = document.getElementById('in-country').value.trim();
+            const names = Array.from(document.querySelectorAll('.in-name')).map(i => i.value).filter(v => v.trim() !== "");
+            if(names.length === 0) return alert("لطفاً ادخل اسم مسافر واحد على الأقل");
+
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true; btn.innerText = "جاري الحفظ...";
+
+            const currentSerial = await getNextSerial();
+            const formattedID = formatID(currentSerial);
+            const dateVal = document.getElementById('in-date').value;
+            const duration = document.getElementById('in-duration').value;
+            const expected = calculateWorkDays(dateVal, duration);
+
+            const receiptData = {
+                id: formattedID, names, country,
+                visaType: document.getElementById('in-visaType').value,
+                date: dateVal ? dateVal.split('-').reverse().join('/') : '',
+                paid: document.getElementById('in-paid').value,
+                remain: document.getElementById('in-remain').value,
+                phone: document.getElementById('in-phone').value,
+                expected, timestamp: new Date()
+            };
+
+            try {
+                await addDoc(receiptsCol, receiptData);
+                await setDoc(settingsDoc, { lastSerial: currentSerial }, { merge: true });
+
+                fetch(scriptURL, {
+                    method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        names: names.join(' - '), country: receiptData.country,
+                        phone: receiptData.phone, date: receiptData.date,
+                        expected: receiptData.expected, paid: receiptData.paid, remain: receiptData.remain
+                    })
+                });
+
+                // الملاحظات الذكية
+                let notesHtml = `
+                    <li>يوم التقديم وايام العطل الرسمية غير محتسبة من ضمن ايام العمل.</li>
+                    <li>المبلغ غير مسترجع في حالة الرفض.</li>
+                    <li>لا تتحمل الشركة اي تأخير عند التدقيق الامني للشخص انما تلتزم وفق الضوابط المعمول بها.</li>
+                `;
+                if (country.includes("مصر")) {
+                    notesHtml += `
+                        <li>يجب ابلاغنا بتاريخ السفر قبل يومين لعمل ورقة الاستقبال.</li>
+                        <li>إذا كان السفر لمصر من خارج العراق يجب ابلاغنا قبل أسبوع.</li>
+                        <li>يُدفع مبلغ 25 $ رسوم طابع الدخول في مطار القاهرة.</li>
+                        <li>في حال قطع التذكرة من خارج مكتبنا يكون سعر الاستقبال 25,000 الف دينار.</li>
+                    `;
+                }
+                document.getElementById('notes-customer').innerHTML = notesHtml;
+
+                document.querySelectorAll('.out-receipt-id').forEach(el => el.innerText = formattedID);
+                let nHtml = names.map((n, i) => `<div class="name-tag"><span class="name-label">(${i+1})</span> ${n}</div>`).join('');
+                document.querySelectorAll('.out-names').forEach(el => el.innerHTML = nHtml);
+
+                const fields = (incExp) => `
+                    <div class="info-item"><span class="info-label">بلد التأشيرة:</span> <span class="info-value">${country}</span></div>
+                    <div class="info-item"><span class="info-label">مدة العمل:</span> <span class="info-value">${duration ? duration + ' أيام عمل' : ''}</span></div>
+                    <div class="info-item"><span class="info-label">نوع التأشيرة:</span> <span class="info-value">${receiptData.visaType}</span></div>
+                    <div class="info-item"><span class="info-label">تاريخ التقديم:</span> <span class="info-value">${receiptData.date}</span></div>
+                    <div class="info-item"><span class="info-label">الواصل:</span> <span class="info-value">${receiptData.paid}</span></div>
+                    <div class="info-item"><span class="info-label">الباقي:</span> <span class="info-value">${receiptData.remain}</span></div>
+                    <div class="info-item full-width"><span class="info-label">رقم الهاتف:</span> <span class="info-value">${receiptData.phone}</span></div>
+                    ${incExp ? `<div class="info-item full-width"><span class="info-label">تاريخ الإصدار المتوقع:</span> <span class="info-value highlight-date">${expected}</span></div>` : ''}
+                `;
+                document.querySelector('#receipt-customer .out-details').innerHTML = fields(false);
+                document.querySelector('#receipt-office .out-details').innerHTML = fields(true);
+
+                window.print();
+                btn.disabled = false; btn.innerText = "توليد وطباعة الوصل";
+                document.getElementById('next-id-view').innerText = formatID(currentSerial + 1);
+            } catch (e) {
+                alert("حدث خطأ أثناء الحفظ");
+                btn.disabled = false;
+            }
+        };
+
+        function renderArchive(data) {
+            const list = document.getElementById('archive-list');
+            list.innerHTML = data.map(item => `
+                <div class="archive-item">
+                    <div class="archive-summary" onclick="this.parentElement.classList.toggle('active')">
+                        <span><b>#${item.id}</b> - ${item.names[0]}</span>
+                        <button class="btn-del" onclick="deleteReceipt('${item.docId}')">حذف</button>
+                    </div>
+                    <div class="archive-details">
+                        <b>المسافرين:</b> ${item.names.join(' , ')}<br>
+                        <b>البلد:</b> ${item.country} | <b>الواصل:</b> ${item.paid}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.deleteReceipt = async (id) => { if(confirm("حذف نهائي؟")) await deleteDoc(doc(db, "receipts", id)); };
+        window.resetCounter = async () => { if(confirm("تصفير العداد؟")) { await setDoc(settingsDoc, { lastSerial: 0 }); location.reload(); }};
+    </script>
+</body>
+</html>

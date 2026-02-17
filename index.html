@@ -131,10 +131,31 @@
             color: var(--royal-green); margin-top: auto; font-size: 12px; font-weight: bold;
         }
 
+        /* --- نظام الإشعارات --- */
+        .notify-box {
+            position: fixed; bottom: 20px; right: -350px; width: 300px;
+            background: white; border-right: 5px solid #d32f2f;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-radius: 8px;
+            transition: right 0.5s ease-in-out; z-index: 3000;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .notify-box.show { right: 20px; }
+        .notify-header {
+            background: #d32f2f; color: white; padding: 10px;
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: bold; font-size: 14px;
+        }
+        .notify-content { max-height: 200px; overflow-y: auto; padding: 10px; }
+        .notify-item {
+            border-bottom: 1px solid #eee; padding: 8px 0; font-size: 13px; line-height: 1.5;
+        }
+        .notify-item:last-child { border-bottom: none; }
+        .notify-item span { color: #d32f2f; font-weight: bold; }
+
         @media print {
             @page { size: A4; margin: 0; }
             body { padding: 0; background: white; display: block; }
-            .main-container, .archive-sidebar, .btn-toggle-archive { display: none !important; }
+            .main-container, .archive-sidebar, .btn-toggle-archive, .notify-box { display: none !important; }
             #print-area { display: flex !important; width: 100%; height: 100vh; }
         }
     </style>
@@ -147,6 +168,14 @@
         <div class="archive-header">أرشيف الواصلات السحابي</div>
         <div class="archive-content" id="archive-list"></div>
         <button onclick="toggleSidebar()" style="padding:10px; cursor:pointer; width:100%; border:none; background:#eee;">إغلاق</button>
+    </div>
+
+    <div id="visa-notifications" class="notify-box" dir="rtl">
+        <div class="notify-header">
+            <span>🔔 تنبيه: فيز مستحقة اليوم</span>
+            <button onclick="closeNotifications()" style="background:none; border:none; color:white; cursor:pointer; font-size:16px;">✖</button>
+        </div>
+        <div id="notify-list" class="notify-content"></div>
     </div>
 
     <div class="main-container">
@@ -220,10 +249,14 @@
         const receiptsCol = collection(db, "receipts");
         const settingsDoc = doc(db, "settings", "counters");
         
-        // تم تحديث الرابط الجديد هنا
         const scriptURL = 'https://script.google.com/macros/s/AKfycbyN5FyUeae3ugbupejyOdmAWhWprjFiEw_Bioilpo9sfLn9FOhTv19-RpOyUvWfNGx4Dw/exec';
 
         window.toggleSidebar = () => document.getElementById('sidebar').classList.toggle('open');
+        
+        window.closeNotifications = () => {
+            document.getElementById('visa-notifications').classList.remove('show');
+        };
+
         const formatID = (num) => String(num).padStart(4, '0');
 
         window.formatPrice = (input) => {
@@ -240,6 +273,29 @@
             return snap.exists() ? snap.data().lastSerial + 1 : 1;
         }
 
+        function checkNotifications(data) {
+            let d = new Date();
+            let todayStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+            
+            let dueToday = data.filter(item => item.expected === todayStr);
+            let notifyBox = document.getElementById('visa-notifications');
+            let notifyList = document.getElementById('notify-list');
+            
+            if (dueToday.length > 0) {
+                notifyList.innerHTML = dueToday.map(item => `
+                    <div class="notify-item">
+                        <span>وصل رقم: ${item.id}</span><br>
+                        <b>الاسم:</b> ${item.names[0]} ${item.names.length > 1 ? '(ومرافقيه)' : ''}<br>
+                        <b>البلد:</b> ${item.country} | <b>الهاتف:</b> ${item.phone}
+                    </div>
+                `).join('');
+                
+                setTimeout(() => notifyBox.classList.add('show'), 1500);
+            } else {
+                notifyBox.classList.remove('show');
+            }
+        }
+
         window.onload = async () => {
             document.getElementById('in-date').value = new Date().toISOString().split('T')[0];
             try {
@@ -253,7 +309,9 @@
 
             const q = query(receiptsCol, orderBy("timestamp", "desc"));
             onSnapshot(q, (snapshot) => {
-                renderArchive(snapshot.docs.map(d => ({ docId: d.id, ...d.data() })));
+                const receiptsData = snapshot.docs.map(d => ({ docId: d.id, ...d.data() }));
+                renderArchive(receiptsData);
+                checkNotifications(receiptsData); 
             });
         };
 
@@ -313,7 +371,6 @@
                     })
                 });
 
-                // الملاحظات الذكية
                 let notesHtml = `
                     <li>يوم التقديم وايام العطل الرسمية غير محتسبة من ضمن ايام العمل.</li>
                     <li>المبلغ غير مسترجع في حالة الرفض.</li>
